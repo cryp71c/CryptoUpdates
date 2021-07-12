@@ -2,20 +2,23 @@ import requests
 import lxml.html as lh
 import pandas as pd
 from IPython.display import display
-
-
 import os
+import smtplib
+from email.message import EmailMessage
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import formatdate
+from email import encoders
 
 # Setup Pandas
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
 pd.set_option('display.max_colwidth', None)
-
 # Get environment variables
 USER = os.environ.get('GMAIL_USER')
 PASSWORD = os.environ.get('GMAIL_PASS')
-
 url = 'https://www.coingecko.com/en/coins/recently_added'
 # Create a handle, page, to handle the contents of the website
 page = requests.get(url)
@@ -62,43 +65,31 @@ for j in range(1, len(tr_elements)):
 Dict = {title: column for (title, column) in col}
 df = pd.DataFrame(Dict)
 df = df[['Coin', 'Price', 'Last Added']]
-
 display(df)
 
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email.utils import formatdate
+df.to_excel("Crypto.xlsx", sheet_name='Current_Crypto')
+msg = EmailMessage()
+subject = 'Current Cryptos'
+body = df
+text = "Attached is your daily update of the most recent cryptos."
+msg['From'] = USER
+## msg['To'] = '' ### This line is used to send the email to someone, uncomment it to send it
+msg['Date'] = formatdate(localtime=True)
+msg['Subject'] = subject
+msg.set_content(text)
 
-from email import encoders
+with open('Crypto.xlsx', 'rb') as f:
+    file_data = f.read()
+    file_type = 'xlsx'
+    file_name = f.name
+
+msg.add_attachment(file_data, maintype='Spreadsheet', subtype=file_type, filename=file_name)
+
 
 with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+    smtp.connect("smtp.gmail.com", 587)
     smtp.ehlo()
     smtp.starttls()
     smtp.ehlo()
-
     smtp.login(USER, PASSWORD)
-
-    subject = 'Current Cryptos'
-    df.to_excel("Crypto.xlsx", sheet_name='Current_Crypto')
-    body = df
-
-    text = "Attached is your daily update of the most recent cryptos."
-
-    msg = MIMEMultipart()
-    msg['From'] = USER
-    msg['To'] = USER
-    msg['Date'] = formatdate(localtime=True)
-    msg['Subject'] = subject
-    msg.attach(MIMEText(text))
-
-    part = MIMEBase('application', "octet-stream")
-    part.set_payload(open("Crypto.xlsx", "rb").read())
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", 'attachment; filename="Crypto.xlsx"')
-    msg.attach(part)
-
-    smtp.sendmail(USER, USER, msg.as_string())
-    smtp.quit()
-
+    smtp.send_message(msg)
